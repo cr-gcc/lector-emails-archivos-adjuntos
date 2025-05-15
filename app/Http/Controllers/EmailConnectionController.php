@@ -24,10 +24,73 @@ class EmailConnectionController extends Controller
             ], 400);
         }
     }
+
+    public function email_info() {
+        $subject_email_plan = config('emailkeyworks.subject_email_plan');
+        $subject = EmailOperations::normalizeText($subject_email_plan);
+        $info = ['message' => "No se encontraron mensajes con el asunto requerido."];
+        $message_info = [];
+        $status = 400;
+        //  Conexion con el cliente de correo
+        $client = Client::account();
+        $client->connect();
+        $folder = $client->getFolder('INBOX');
+        $messages = $folder->query()->all()->get();
+        $client->disconnect();
+        //  No. de correos
+        if (count($messages)) {
+            foreach ($messages as $message) {
+                //  Normalizacion de texto para las comparaciones
+                $clean_tmp_subject = iconv_mime_decode($message->getSubject(), 0, "UTF-8");
+                $clean_tmp_subject = EmailOperations::normalizeText($clean_tmp_subject);
+                //  Coincidencias
+                if (str_contains($clean_tmp_subject, $subject)) {
+                    $body = $message->getTextBody();
+                    $clean_body = preg_replace('/\s+/', ' ', $body);
+                    $start = stripos($clean_body, 'plan de trabajo del mtro');
+                    if ($start !== false) {
+                        $fragment = substr($clean_body, $start, 300);
+                        $fragment = mb_convert_encoding($fragment, 'UTF-8', 'UTF-8');
+                        $fragment = str_replace(['“', '”', '‘', '’'], '"', $fragment); 
+                        Log::info("Fragmento para inspección: " . $fragment);
+                        $pattern_linea = '/plan de trabajo del mtr[oa],\s*([^,]+),\s*([^,]+),\s*m[oó]dulo\s+([IVXLCDM]+)\s+"([^"]+)"/i';
+
+
+                        if (preg_match($pattern_linea, $fragment, $matches)) {
+                            Log::info("coincidencias");
+                            $nombre = trim($matches[1]);
+                            $diplomado = trim($matches[2]);
+                            $grupo = trim($matches[3]);
+                            $modulo = trim($matches[4]);
+
+                            $message_info[] = [
+                                'profesor' => $nombre,
+                                'diplomado' => $diplomado,
+                                'grupo' => $grupo,
+                                'modulo' => $modulo,
+                            ];
+                        }
+                    }
+                }
+            }
+
+            if (count($message_info)){
+                $info = [
+                    'data' => $message_info,
+                    'message' => "Información encontrada."
+                ];
+                $status = 200;
+            }
+        }
+        
+        return response()->json($info, $status);
+    }
     
     public function email_pdf_letters(){
-        $subject = EmailOperations::normalizeText('Carta invitación, Diplomado en línea');
-        $pdf_name = EmailOperations::normalizeText('carta invitación');
+        $subject_email_letter = config('emailkeyworks.subject_email_letter');
+        $subject_pdf_letter = config('emailkeyworks.subject_pdf_letter');
+        $subject = EmailOperations::normalizeText($subject_email_letter);
+        $pdf_name = EmailOperations::normalizeText($subject_pdf_letter);
         $pdf_extension = 'pdf';
         $save_path = storage_path('app/public/');
         $success_flag = 0;
@@ -86,6 +149,9 @@ class EmailConnectionController extends Controller
                     }
                 }
             }
+            //  Cerramos conexion
+            $client->disconnect();
+
             if ($success_flag) {
                 return response()->json([
                     'message' => "Se agregaron {$success_flag} registro(s)"

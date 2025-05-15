@@ -19,7 +19,7 @@ Route::middleware('auth')->group(function () {
         Route::delete('/profile', [ProfileController::class, 'destroy'])->name('profile.destroy');
     //  Connection
         Route::get('/test-connection', [EmailConnectionController::class, 'connection_test'])->name('connection');
-        Route::get('/email-info', [EmailConnectionController::class, 'email-info'])->name('connection.email.info');
+        Route::get('/email-info', [EmailConnectionController::class, 'email_info'])->name('connection.email.info');
         Route::get('/email-pdf-letters', [EmailConnectionController::class, 'email_pdf_letters'])->name('connection.email.pdf.letters');
         Route::get('/delete-pdf', [EmailConnectionController::class, 'delete_pdf'])->name('connection.delete.pdf');
 
